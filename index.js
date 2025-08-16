@@ -1,52 +1,52 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
+const { google } = require("googleapis");
+const creds = JSON.parse(atob(process.env.SA_KEY_FILE))
 
 exports.handler = async (event) => {
     try {
-        const serviceAccountAuth = new JWT({
-            email: process.env.CLIENT_EMAIL,
-            key: process.env.PRIVATE_KEY.replace(/\\n/g, '\n'),
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        console.log('Starting auth creation');
+        const auth = new google.auth.GoogleAuth({
+            credentials: creds,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
         });
+        console.log('Auth created, fetching sheets');
+        const sheets = google.sheets({ version: 'v4', auth: auth });
+        console.log('Sheets API initialized, fetching data');
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: '1ilfh51A78xXq1-tN2yHXY5FC_JdcuFXm9aIaSVJs0Sw',
+            range: 'A:J',
+        });
+        console.log('Data fetched, processing response');
+        
+        const data = [];
+        const values = response.data.values;
+        const headers = values[0]; // Assuming first row contains headers
 
-        // Initialize the Google Spreadsheet client
-        const doc = new GoogleSpreadsheet('1ilfh51A78xXq1-tN2yHXY5FC_JdcuFXm9aIaSVJs0Sw', serviceAccountAuth);
-
-        // Load spreadsheet info
-        await doc.loadInfo();
-
-        // Get the first sheet (or specify a sheet by name or index)
-        const sheet = doc.sheetsByTitle['data']; // Or use doc.sheetsByTitle['Sheet1']
-        const range = 'A:J'; // Default range
-
-        // Load specific range
-        await sheet.loadCells(range);
-
-        // Get cell values
-        const rows = [];
-        const [startRow, startCol, endRow, endCol] = parseRange(range);
-        for (let i = startRow; i <= endRow; i++) {
-            const row = [];
-            for (let j = startCol; j <= endCol; j++) {
-                const cell = sheet.getCell(i, j);
-                row.push(cell.value || '');
+        // Convert rows to objects
+        for (let i = 1; i < values.length; i++) {
+            const row = values[i];
+            if (row) {
+                const rowData = {};
+                headers.forEach((header, index) => {
+                    rowData[header] = row[index] || ''; // Handle empty cells
+                });
+                data.push(rowData);
             }
-            rows.push(row);
         }
 
         return {
             statusCode: 200,
             headers: {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*' // Enable CORS if needed
+                'Access-Control-Allow-Origin': '*'
             },
             body: JSON.stringify({
                 success: true,
-                data: rows
+                data: data
             })
         };
-    } catch (error) {
-        console.error('Error:', error);
+
+    } catch (err) {
+        console.error(err);
         return {
             statusCode: 500,
             headers: {
@@ -55,7 +55,7 @@ exports.handler = async (event) => {
             },
             body: JSON.stringify({
                 success: false,
-                error: error.message
+                error: err.message
             })
         };
     }
@@ -75,4 +75,8 @@ function parseRange(range) {
 // Convert column letter (e.g., 'A') to index (0-based)
 function columnToIndex(col) {
     return col.split('').reduce((index, char) => index * 26 + (char.charCodeAt(0) - 64), 0) - 1;
+}
+
+if (process.argv[1].indexOf('index.js') !== -1) {
+    exports.handler({});
 }
