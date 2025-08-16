@@ -11,7 +11,8 @@
   "description": "",
   "dependencies": {
     "google-auth-library": "^10.2.0",
-    "google-spreadsheet": "^4.1.5"
+    "google-spreadsheet": "^4.1.5",
+    "googleapis": "^156.0.0"
   },
   "devDependencies": {}
 }
